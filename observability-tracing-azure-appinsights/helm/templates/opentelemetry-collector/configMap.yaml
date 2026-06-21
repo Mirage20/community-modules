@@ -1,0 +1,77 @@
+# Copyright 2026 The OpenChoreo Authors
+# SPDX-License-Identifier: Apache-2.0
+
+{{- if (index .Values "opentelemetry-collector" "enabled") }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: opentelemetry-collector
+  namespace: {{ .Release.Namespace }}
+data:
+  relay: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+
+    exporters:
+      azuremonitor:
+        connection_string: ${env:APPINSIGHTS_CONNECTION_STRING}
+
+    extensions:
+      health_check:
+        endpoint: ${env:MY_POD_IP}:13133
+
+    processors:
+      # NOTE: "k8sattributes" was renamed "k8s_attributes" upstream; the old
+      # name is a working alias on every contrib version this chart supports,
+      # and the only one accepted by older images. Rename once the pinned
+      # subchart's appVersion is >= 0.153.0 everywhere.
+      k8sattributes:
+        auth_type: "serviceAccount"
+        passthrough: false
+
+        extract:
+          labels:
+            - tag_name: $$1
+              key_regex: (.*)
+              from: pod
+
+          metadata:
+            - k8s.pod.name
+            - k8s.pod.uid
+            - k8s.deployment.name
+            - k8s.namespace.name
+            - k8s.node.name
+      {{- if .Values.opentelemetryCollectorCustomizations.tailSampling.enabled }}
+      tail_sampling:
+        decision_wait: {{ .Values.opentelemetryCollectorCustomizations.tailSampling.decisionWait }}
+        num_traces: {{ .Values.opentelemetryCollectorCustomizations.tailSampling.numTraces }}
+        expected_new_traces_per_sec: {{ .Values.opentelemetryCollectorCustomizations.tailSampling.expectedNewTracesPerSec }}
+        decision_cache:
+          sampled_cache_size: {{ .Values.opentelemetryCollectorCustomizations.tailSampling.decisionCache.sampledCacheSize }}
+          non_sampled_cache_size: {{ .Values.opentelemetryCollectorCustomizations.tailSampling.decisionCache.nonSampledCacheSize }}
+        policies: [
+            {
+              name: rate_limiting,
+              type: rate_limiting,
+              rate_limiting: {spans_per_second: {{ .Values.opentelemetryCollectorCustomizations.tailSampling.spansPerSecond }} }
+            },
+        ]
+      {{- end }}
+
+    service:
+      extensions: [health_check]
+      pipelines:
+        traces:
+          receivers: [otlp]
+          {{- $processors := list "k8sattributes" }}
+          {{- if .Values.opentelemetryCollectorCustomizations.tailSampling.enabled }}
+          {{- $processors = append $processors "tail_sampling" }}
+          {{- end }}
+          processors: [{{ join ", " $processors }}]
+          exporters: [azuremonitor]
+{{- end }}
