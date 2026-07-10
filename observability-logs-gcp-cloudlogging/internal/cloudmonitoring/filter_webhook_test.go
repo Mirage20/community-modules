@@ -13,13 +13,13 @@ import (
 func TestBuildAlertFilter_ScopeAndPhrase(t *testing.T) {
 	f := BuildAlertFilter(RuleInput{
 		Namespace:    "default",
-		ComponentUID: "c-uid",
+		ComponentUID: "846bb581-d6ba-446d-a160-8cec468d2219",
 		Query:        "panic",
 	})
 	for _, want := range []string{
 		`resource.type="k8s_container"`,
 		`labels."k8s-pod/openchoreo_dev/namespace"="default"`,
-		`labels."k8s-pod/openchoreo_dev/component-uid"="c-uid"`,
+		`labels."k8s-pod/openchoreo_dev/component-uid"="846bb581-d6ba-446d-a160-8cec468d2219"`,
 		`(textPayload:"panic" OR jsonPayload.message:"panic")`,
 	} {
 		if !strings.Contains(f, want) {

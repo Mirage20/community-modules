@@ -35,9 +35,9 @@ func TestBuildComponentLogsFilter_RequiredAndOptionalClauses(t *testing.T) {
 
 	f := BuildComponentLogsFilter(ComponentLogsParams{
 		Namespace:      "ns1",
-		ComponentUID:   "c-uid",
-		ProjectUID:     "p-uid",
-		EnvironmentUID: "e-uid",
+		ComponentUID:   "846bb581-d6ba-446d-a160-8cec468d2219",
+		ProjectUID:     "2f1c9a4e-7b3d-4e5a-9c8f-1a2b3c4d5e6f",
+		EnvironmentUID: "b7e6d3c2-5f4a-4d1e-8c9b-0a1b2c3d4e5f",
 		StartTime:      start,
 		EndTime:        end,
 		LogLevels:      []string{"ERROR"},
@@ -47,9 +47,9 @@ func TestBuildComponentLogsFilter_RequiredAndOptionalClauses(t *testing.T) {
 	for _, want := range []string{
 		`resource.type="k8s_container"`,
 		`labels."k8s-pod/openchoreo_dev/namespace"="ns1"`,
-		`labels."k8s-pod/openchoreo_dev/component-uid"="c-uid"`,
-		`labels."k8s-pod/openchoreo_dev/project-uid"="p-uid"`,
-		`labels."k8s-pod/openchoreo_dev/environment-uid"="e-uid"`,
+		`labels."k8s-pod/openchoreo_dev/component-uid"="846bb581-d6ba-446d-a160-8cec468d2219"`,
+		`labels."k8s-pod/openchoreo_dev/project-uid"="2f1c9a4e-7b3d-4e5a-9c8f-1a2b3c4d5e6f"`,
+		`labels."k8s-pod/openchoreo_dev/environment-uid"="b7e6d3c2-5f4a-4d1e-8c9b-0a1b2c3d4e5f"`,
 		`timestamp>="2026-06-25T00:00:00Z"`,
 		`timestamp<="2026-06-26T00:00:00Z"`,
 		`severity="ERROR"`,
