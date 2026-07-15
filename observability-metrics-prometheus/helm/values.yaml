@@ -9,9 +9,9 @@ global:
   # mirrors. Empty uses each image's default registry.
   # NOTE: subchart images are governed by the subcharts' own keys — the
   # kube-prometheus-stack subchart honors its own global.imageRegistry (this
-  # same key flows to it). Prometheus agent pods are spawned by the operator
-  # with its default image; set the Prometheus CR spec.image explicitly when
-  # mirroring.
+  # same key flows to it). In multiClusterExporter mode the PrometheusAgent CR
+  # carries no spec.image, so the operator spawns it with its compiled-in
+  # default image; set spec.image explicitly when mirroring.
   imageRegistry: ""
   # Pull secrets for the module's own pods, for authenticated mirrors.
   # e.g. imagePullSecrets: [{name: my-registry-cred}]
