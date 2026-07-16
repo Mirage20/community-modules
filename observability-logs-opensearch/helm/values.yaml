@@ -87,7 +87,8 @@ fluent-bit:
         capabilities:
           drop:
           - ALL
-        privileged: true
+          add:
+          - CHOWN
         readOnlyRootFilesystem: true
         runAsUser: 0
       volumeMounts:
