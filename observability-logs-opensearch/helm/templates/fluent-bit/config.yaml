@@ -1,6 +1,6 @@
 {{- if (index .Values "fluent-bit").enabled }}
 {{- if not .Values.fluentBitCustomizations.clusterInstance }}
-{{- fail "fluentBitCustomizations.clusterInstance is required. It names the cluster these records came from and cannot be defaulted." }}
+{{- fail "fluentBitCustomizations.clusterInstance is required. It names the cluster these records came from and cannot be defaulted. Set fluent-bit.enabled=false to install without log collection." }}
 {{- end }}
 apiVersion: v1
 kind: ConfigMap

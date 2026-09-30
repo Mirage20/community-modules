@@ -15,43 +15,43 @@ global:
   imagePullSecrets: []
 
 fluent-bit:
-  enabled: false
+  enabled: true
 
   existingConfigMap: "fluent-bit"
 
   env:
-  - name: OPENSEARCH_USERNAME
-    valueFrom:
-      secretKeyRef:
-        name: opensearch-admin-credentials
-        key: username
-  - name: OPENSEARCH_PASSWORD
-    valueFrom:
-      secretKeyRef:
-        name: opensearch-admin-credentials
-        key: password
-  # Credentials for auditLogs.output. Only read when auditLogs.output.host is set.
-  - name: AUDIT_OPENSEARCH_USERNAME
-    valueFrom:
-      secretKeyRef:
-        name: opensearch-audit-credentials
-        key: username
-        optional: true
-  - name: AUDIT_OPENSEARCH_PASSWORD
-    valueFrom:
-      secretKeyRef:
-        name: opensearch-audit-credentials
-        key: password
-        optional: true
+    - name: OPENSEARCH_USERNAME
+      valueFrom:
+        secretKeyRef:
+          name: opensearch-admin-credentials
+          key: username
+    - name: OPENSEARCH_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: opensearch-admin-credentials
+          key: password
+    # Credentials for auditLogs.output. Only read when auditLogs.output.host is set.
+    - name: AUDIT_OPENSEARCH_USERNAME
+      valueFrom:
+        secretKeyRef:
+          name: opensearch-audit-credentials
+          key: username
+          optional: true
+    - name: AUDIT_OPENSEARCH_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: opensearch-audit-credentials
+          key: password
+          optional: true
 
   dnsPolicy: ClusterFirstWithHostNet
   fullnameOverride: "fluent-bit"
   hostNetwork: true
 
   extraVolumeMounts:
-  - name: db
-    mountPath: "/var/lib/fluent-bit/db"
-    readOnly: false
+    - name: db
+      mountPath: "/var/lib/fluent-bit/db"
+      readOnly: false
 
   extraVolumes:
     - name: db
@@ -74,7 +74,7 @@ fluent-bit:
     allowPrivilegeEscalation: false
     capabilities:
       drop:
-      - ALL
+        - ALL
     readOnlyRootFilesystem: true
     runAsNonRoot: true
     runAsUser: 10000
@@ -107,6 +107,70 @@ fluent-bit:
       volumeMounts:
       - name: db
         mountPath: /var/lib/fluent-bit/db
+    {{- if .Values.waitForIndexTemplate.enabled }}
+    - name: wait-for-index-template
+      image: "{{ with .Values.global.imageRegistry }}{{ . }}/{{ end }}{{ .Values.waitForIndexTemplate.image }}"
+      command:
+      - sh
+      - -c
+      - |
+        for t in $TEMPLATES; do
+          until [ "$(curl -sk -o /dev/null -w '%{http_code}' -u "$OPENSEARCH_USERNAME:$OPENSEARCH_PASSWORD" \
+                --connect-to "$OPENSEARCH_VHOST:$OPENSEARCH_PORT:$OPENSEARCH_HOST:$OPENSEARCH_PORT" \
+                "https://$OPENSEARCH_VHOST:$OPENSEARCH_PORT/_index_template/$t")" = "200" ]; do
+            echo "Waiting for OpenSearch index template $t..."
+            sleep 5
+          done
+          echo "Index template $t found"
+        done
+      env:
+      - name: OPENSEARCH_HOST
+        value: {{ .Values.openSearchHost | quote }}
+      - name: OPENSEARCH_PORT
+        value: {{ .Values.openSearchPort | quote }}
+      - name: OPENSEARCH_VHOST
+        value: {{ .Values.openSearchVHost | default "opensearch" | quote }}
+      - name: TEMPLATES
+        value: {{ join " " .Values.waitForIndexTemplate.templateNames | quote }}
+      - name: OPENSEARCH_USERNAME
+        valueFrom:
+          secretKeyRef:
+            name: {{ .Values.waitForIndexTemplate.credentialsSecretName }}
+            key: username
+      - name: OPENSEARCH_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: {{ .Values.waitForIndexTemplate.credentialsSecretName }}
+            key: password
+      resources:
+        limits:
+          cpu: 15m
+          memory: "32Mi"
+        requests:
+          cpu: 10m
+          memory: "24Mi"
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+          - ALL
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 10000
+    {{- end }}
+
+  # Holds fluent-bit in Init until the index templates it writes against exist, so
+  # the first daily index gets the template's mappings instead of dynamic ones
+  # openSearchSetup job creates them on the observability plane;
+  # remote clusters wait on the same shared OpenSearch.
+  # Disable if the templates are managed outside this chart.
+  waitForIndexTemplate:
+    enabled: true
+    templateNames:
+      - container-logs
+      - audit-logs
+    credentialsSecretName: opensearch-admin-credentials
+    image: "curlimages/curl:8.22.0"
 
   # Values for fluent-bit config map
   openSearchHost: "opensearch"
@@ -167,7 +231,6 @@ openSearch:
     serviceAccountName: "opensearch"
 
   singleNode: true
-
 
 ## -----------------------------------------------------------
 ## Values for OpenChoreo specific customizations and workloads

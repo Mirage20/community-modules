@@ -8,11 +8,8 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: opensearch-setup-logs
+  name: opensearch-setup-logs-{{ .Release.Revision }}
   namespace: {{.Release.Namespace}}
-  annotations:
-    helm.sh/hook: post-install, post-upgrade
-    helm.sh/hook-delete-policy: before-hook-creation
 spec:
   template:
     spec:

@@ -58,6 +58,10 @@ helm upgrade --install opensearch-operator opensearch-operator/opensearch-operat
 
 ## Deploy Helm chart
 
+Fluent Bit is enabled by default, so a single install collects logs and stores them in
+OpenSearch. Every install that runs Fluent Bit must name its cluster with
+`fluentBitCustomizations.clusterInstance` — see [Naming the cluster](#naming-the-cluster).
+
 > **Note:** If you wish to use the Kubernetes operator-based OpenSearch version, add `--set openSearch.enabled=false --set openSearchCluster.enabled=true --set openSearchCluster.credentialsSecretName="opensearch-admin-credentials"` flags when installing the Helm chart. The admin password will be read from the credentials secret at install time.
 
 ```bash
@@ -67,8 +71,13 @@ helm upgrade --install observability-logs-opensearch \
   --namespace openchoreo-observability-plane \
   --version 0.6.0 \
   --set adapter.openSearchSecretName="opensearch-admin-credentials" \
-  --set openSearchSetup.openSearchSecretName="opensearch-admin-credentials"
+  --set openSearchSetup.openSearchSecretName="opensearch-admin-credentials" \
+  --set fluentBitCustomizations.clusterInstance=singleCluster
 ```
+
+This is the **single-cluster topology**, where the observability plane runs in the same
+cluster as the control-plane / data-plane / workflow-plane clusters. For separate
+clusters, see [Multi-cluster topology](#multi-cluster-topology).
 
 > **Note:** If OpenSearch is already installed by another module (e.g., `observability-tracing-opensearch`), disable it to avoid conflicts:
 >
@@ -80,12 +89,15 @@ helm upgrade --install observability-logs-opensearch \
 >   --version 0.6.0 \
 >   --set adapter.openSearchSecretName="opensearch-admin-credentials" \
 >   --set openSearch.enabled=false \
->   --set openSearchSetup.openSearchSecretName="opensearch-admin-credentials"
+>   --set openSearchSetup.openSearchSecretName="opensearch-admin-credentials" \
+>   --set fluentBitCustomizations.clusterInstance=singleCluster
 > ```
 
-## Enable log collection
+## Log collection
 
-Every install that enables Fluent Bit must name its cluster:
+### Naming the cluster
+
+Every install that runs Fluent Bit must name its cluster:
 
 ```bash
 --set fluentBitCustomizations.clusterInstance=clusterX
@@ -97,28 +109,22 @@ defaults would produce indistinguishable records, and nothing surfaces the mista
 the second cluster exists. The collector stamps it on each record as
 `openchoreo_cluster_instance`, and platform observability filters on it.
 
+To install OpenSearch and the adapter without collecting logs in this cluster, set
+`--set fluent-bit.enabled=false`; `clusterInstance` is then not needed.
+
 `kube-system` is excluded from collection. CoreDNS, kube-proxy, the CNI and the API
 server sit a layer below OpenChoreo; static pods cannot be labelled, and managed
 providers reconcile that namespace anyway.
 
-### Single-cluster topology
+### Waiting for the index templates
 
-In a **single-cluster topology**, where the observability plane runs in the same cluster
-as the data-plane / workflow-plane clusters, enable Fluent Bit in the already installed Helm chart
-to start collecting logs from the cluster and publish them to OpenSearch:
+Fluent Bit waits in `Init` until the `container-logs` and `audit-logs` index templates
+exist in OpenSearch. The `openSearchSetup` job creates them, so without this wait the
+first daily index could be created with dynamic mappings the adapter's queries don't
+match. Fluent Bit can therefore be enabled in the same install as OpenSearch. See
+[Fluent Bit pods stay in Init](#fluent-bit-pods-stay-in-init).
 
-```bash
-helm upgrade observability-logs-opensearch \
-  oci://ghcr.io/openchoreo/helm-charts/observability-logs-opensearch \
-  --create-namespace \
-  --namespace openchoreo-observability-plane \
-  --version 0.6.0 \
-  --reuse-values \
-  --set fluent-bit.enabled=true \
-  --set fluentBitCustomizations.clusterInstance=singleCluster
-```
-
-### Multi-cluster topology
+## Multi-cluster topology
 
 In a **multi-cluster topology**, where the observability plane runs in a separate cluster
 from the control-plane/ data-plane / workflow-plane clusters, you need two things:
@@ -126,7 +132,7 @@ from the control-plane/ data-plane / workflow-plane clusters, you need two thing
 1. **On the observability plane cluster**: expose OpenSearch through the gateway via TLS passthrough so remote fluent-bit instances can reach it.
 2. **On each remote cluster**: install this chart with only fluent-bit enabled, pointed at the obs cluster's OpenSearch endpoint.
 
-#### Observability plane cluster setup
+### Observability plane cluster setup
 
 The recommended approach is the **OpenSearch Operator** (`openSearchCluster.enabled=true`), which automatically creates the TLSRoute needed for gateway passthrough. Install the operator first (see [Prerequisites](#pre-requisites)), then install the chart with:
 
@@ -140,8 +146,12 @@ helm upgrade --install observability-logs-opensearch \
   --set openSearch.enabled=false \
   --set openSearchCluster.enabled=true \
   --set openSearchCluster.credentialsSecretName="opensearch-admin-credentials" \
-  --set openSearchSetup.openSearchSecretName="opensearch-admin-credentials"
+  --set openSearchSetup.openSearchSecretName="opensearch-admin-credentials" \
+  --set fluentBitCustomizations.clusterInstance=<op-cluster-name>
 ```
+
+Fluent Bit collects this cluster's own logs too. Add `--set fluent-bit.enabled=false` to
+run OpenSearch and the adapter here without collecting them.
 
 You also need TLS passthrough enabled on the observability plane gateway. When installing the `openchoreo-observability-plane` chart, include:
 
@@ -154,7 +164,7 @@ gateway:
 
 > **Note:** If you use the helm subchart OpenSearch (`openSearch.enabled=true`) instead of the operator, the TLSRoute is not auto-generated and the `BackendConfigPolicy` on the default `opensearch` Service conflicts with TLS passthrough (causes double-TLS). You would need to create a separate passthrough Service and TLSRoute manually. The operator approach avoids this complexity.
 
-#### Remote cluster setup (control-plane / data-plane / workflow-plane clusters)
+### Remote cluster setup (control-plane / data-plane / workflow-plane clusters)
 
 Install the chart with only fluent-bit enabled (set the `clusterInstance` accordingly):
 
@@ -168,7 +178,6 @@ helm upgrade --install observability-logs-opensearch \
   --set openSearch.enabled=false \
   --set openSearchCluster.enabled=false \
   --set openSearchSetup.enabled=false \
-  --set fluent-bit.enabled=true \
   --set fluentBitCustomizations.clusterInstance=clusterX \
   --set fluent-bit.openSearchHost=opensearch.<OBS_BASE_DOMAIN> \
   --set fluent-bit.openSearchPort=<gateway-tls-passthrough-port> \
@@ -180,7 +189,7 @@ helm upgrade --install observability-logs-opensearch \
 > - The `opensearch-admin-credentials` secret must exist on the remote cluster. If you don't have a shared secret backend, create it manually (see the [Multi-Cluster Connectivity](https://openchoreo.dev/docs/platform-engineer-guide/multi-cluster-connectivity/) guide).
 > - `fluent-bit.openSearchHost` and `fluent-bit.openSearchVHost` should match the TLS passthrough hostname on the obs gateway.
 > - `fluent-bit.openSearchPort` should match the passthrough listener port (commonly `11443` if the obs gateway uses non-standard ports).
-> - The adapter and setup job are disabled because they only need to run on the observability plane cluster.
+> - The adapter and setup job are disabled because they only need to run on the observability plane cluster. Fluent Bit stays in `Init` until the observability plane's setup job has created the index templates.
 > - On the **control plane** cluster, add `--set auditLogs.enabled=true` to also collect the audit trail. See [Enable audit log collection](#enable-audit-log-collection).
 
 ## Enable audit log collection
@@ -199,7 +208,6 @@ helm upgrade observability-logs-opensearch \
   --namespace openchoreo-observability-plane \
   --version 0.6.0 \
   --reuse-values \
-  --set fluent-bit.enabled=true \
   --set fluentBitCustomizations.clusterInstance=singleCluster \
   --set auditLogs.enabled=true
 ```
@@ -222,7 +230,6 @@ helm upgrade observability-logs-opensearch \
   --namespace openchoreo-observability-plane \
   --version 0.6.0 \
   --reuse-values \
-  --set fluent-bit.enabled=true \
   --set fluentBitCustomizations.clusterInstance=<op-cluster-name> \
   --set auditLogs.enabled=true
 ```
@@ -239,7 +246,6 @@ helm upgrade --install observability-logs-opensearch \
   --set openSearch.enabled=false \
   --set openSearchCluster.enabled=false \
   --set openSearchSetup.enabled=false \
-  --set fluent-bit.enabled=true \
   --set fluentBitCustomizations.clusterInstance=<cp-cluster-name> \
   --set fluent-bit.openSearchHost=opensearch.<OBS_BASE_DOMAIN> \
   --set fluent-bit.openSearchPort=<gateway-tls-passthrough-port> \
@@ -387,9 +393,26 @@ configuration changes.
 
 ## Troubleshooting
 
+### Fluent Bit pods stay in Init
+
+The `wait-for-index-template` init container polls `https://<openSearchVHost>:<openSearchPort>/_index_template/<name>` (connecting to `openSearchHost`) until each template in `fluent-bit.waitForIndexTemplate.templateNames` exists. Check its logs:
+
+```bash
+kubectl logs -n openchoreo-observability-plane <fluent-bit-pod> -c wait-for-index-template
+```
+
+If it keeps printing `Waiting for OpenSearch index template ...`, check, in order:
+
+- the `opensearch-setup-logs-<revision>` job on the observability plane completed;
+- `fluent-bit.openSearchHost`/`Port`/`VHost` are reachable from the node;
+- `fluent-bit.waitForIndexTemplate.credentialsSecretName` (default `opensearch-admin-credentials`) holds valid credentials;
+- the host actually carries every name in `fluent-bit.waitForIndexTemplate.templateNames`. An OpenSearch provisioned outside this chart may have no `audit-logs` template, in which case drop that name from the list.
+
+If the templates are managed elsewhere and their ordering is guaranteed by something else, set `fluent-bit.waitForIndexTemplate.enabled=false` — but see [Waiting for the index templates](#waiting-for-the-index-templates) for what that gives up.
+
 ### Observer returns no logs
 
-If Fluent Bit is shipping and `container-logs-*` is filling but Observer queries come back empty, the index was likely created before `openSearchSetup` applied its template — so it has dynamic mappings that don't match what the adapter queries. Delete the index and let Fluent Bit recreate it:
+If Fluent Bit is shipping and `container-logs-*` is filling but Observer queries come back empty, the index was likely created before `openSearchSetup` applied its template — so it has dynamic mappings that don't match what the adapter queries. Fluent Bit waits for the template, but an index created before that (or with `fluent-bit.waitForIndexTemplate.enabled=false`) keeps its mappings. Delete the index and let Fluent Bit recreate it:
 
 ```bash
 kubectl exec -n openchoreo-observability-plane opensearch-master-0 \
