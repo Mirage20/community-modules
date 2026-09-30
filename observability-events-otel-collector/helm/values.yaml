@@ -59,6 +59,12 @@ collector:
   #        name: opensearch-admin-credentials
   #        key: username
 
+  # Init containers for the collector pod, rendered through `tpl` so they can use
+  # template expressions (e.g. the shared global.imageRegistry). Typically used to
+  # hold the collector until its backend is ready to receive events. The README
+  # has a ready-made one for OpenSearch.
+  initContainers: []
+
   podAnnotations: {}
   podLabels: {}
   nodeSelector: {}
