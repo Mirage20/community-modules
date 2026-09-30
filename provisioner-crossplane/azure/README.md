@@ -62,7 +62,8 @@ az identity federated-credential create \
 The federated credential names one provider's ServiceAccount. Each provider in
 [`provider.yaml`](provider.yaml) needs its own.
 
-`Contributor` on the resource group lets the providers manage anything in that group.
+`Contributor` on the resource group lets the providers manage anything in that group, so use a group
+that holds only the resources this backing creates.
 
 ### 2. Install the providers
 

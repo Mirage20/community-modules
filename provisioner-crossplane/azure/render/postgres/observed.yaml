@@ -7,13 +7,13 @@
 apiVersion: dbforpostgresql.azure.m.upbound.io/v1beta1
 kind: FlexibleServer
 metadata:
-  name: r-orders-db-development-3a0bc383
+  name: r-orders-db-development-1a2b3c4d
   namespace: dp-default-shop-development-5f6e7d8c
   annotations:
     crossplane.io/composition-resource-name: server
 status:
   atProvider:
-    fqdn: xp-r-orders-db-development-3a0bc383.postgres.database.azure.com
+    fqdn: xp-r-orders-db-development-1a2b3c4d.postgres.database.azure.com
   conditions:
     - type: Ready
       status: "True"
@@ -23,7 +23,7 @@ status:
 apiVersion: dbforpostgresql.azure.m.upbound.io/v1beta1
 kind: FlexibleServerDatabase
 metadata:
-  name: r-orders-db-development-3a0bc383
+  name: r-orders-db-development-1a2b3c4d
   namespace: dp-default-shop-development-5f6e7d8c
   annotations:
     crossplane.io/composition-resource-name: database
@@ -37,7 +37,7 @@ status:
 apiVersion: dbforpostgresql.azure.m.upbound.io/v1beta1
 kind: FlexibleServerFirewallRule
 metadata:
-  name: r-orders-db-development-3a0bc383-data-plane-egress
+  name: r-orders-db-development-1a2b3c4d-data-plane-egress
   namespace: dp-default-shop-development-5f6e7d8c
   annotations:
     crossplane.io/composition-resource-name: firewall-data-plane-egress
