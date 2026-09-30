@@ -1,0 +1,41 @@
+# Copyright 2026 The OpenChoreo Authors
+# SPDX-License-Identifier: Apache-2.0
+#
+# This data plane's Azure settings, read by every Azure Composition in the
+# module. Keeping them here, rather than in the ResourceTypes, is what lets the
+# ResourceTypes stay cloud-neutral.
+#
+# Settings shared by every resource kind are at the top level. Settings for one
+# kind go under its own key, such as `postgres`.
+apiVersion: apiextensions.crossplane.io/v1beta1
+kind: EnvironmentConfig
+metadata:
+  name: azure
+  labels:
+    app.kubernetes.io/name: provisioner-crossplane
+    app.kubernetes.io/part-of: openchoreo
+data:
+  # An existing resource group. The Compositions only reference it by name;
+  # they never create or delete it.
+  resourceGroupName: <resource-group>
+
+  # Azure region for new resources, for example eastus2. Not every region
+  # offers every size on every subscription.
+  location: <region>
+
+  # Prepended to the name of every Azure resource the Compositions create.
+  # Crossplane adopts an existing Azure resource with the same name as its own,
+  # so a distinct prefix keeps it away from resources it did not create.
+  namePrefix: xp-
+
+  postgres:
+    # Administrator login for new servers. Azure reserves some names, such as
+    # admin, root and azure_superuser.
+    administratorLogin: pgadmin
+
+    # One firewall rule per entry. The data plane's outbound IP must be
+    # allowed, or workloads cannot connect.
+    firewallRules:
+      - name: data-plane-egress
+        startIpAddress: <egress-ip>
+        endIpAddress: <egress-ip>

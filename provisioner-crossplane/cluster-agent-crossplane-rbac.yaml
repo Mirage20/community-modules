@@ -1,0 +1,50 @@
+# Copyright 2026 The OpenChoreo Authors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Lets the OpenChoreo data-plane agent manage the composite resources that this
+# module's ResourceTypes render, such as PostgresInstance. It has no access to
+# them by default, and without this the ResourceReleaseBinding reports an apply
+# failure.
+#
+# The grant covers every kind in the module's API group, so adding a resource
+# kind needs no change here. The agent only creates these composite resources;
+# Crossplane creates the cloud resources behind them under its own
+# permissions, so no provider API groups are needed.
+#
+# The subject below is the standard data-plane agent ServiceAccount
+# (`cluster-agent-dataplane` in `openchoreo-data-plane`). If your data plane uses
+# a different ServiceAccount name or namespace, edit the ClusterRoleBinding
+# subject. Apply this on the cluster running the OpenChoreo data plane.
+#
+# Keep this grant until every composite resource in the group is gone. If the
+# agent loses `delete` while some still exist, OpenChoreo can no longer remove
+# them.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: openchoreo-cluster-agent-crossplane
+  labels:
+    app.kubernetes.io/name: provisioner-crossplane
+    app.kubernetes.io/part-of: openchoreo
+    app.kubernetes.io/component: cluster-agent
+rules:
+  - apiGroups: ["crossplane.community.openchoreo.dev"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: openchoreo-cluster-agent-crossplane
+  labels:
+    app.kubernetes.io/name: provisioner-crossplane
+    app.kubernetes.io/part-of: openchoreo
+    app.kubernetes.io/component: cluster-agent
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: openchoreo-cluster-agent-crossplane
+subjects:
+  - kind: ServiceAccount
+    name: cluster-agent-dataplane
+    namespace: openchoreo-data-plane

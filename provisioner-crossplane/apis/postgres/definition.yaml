@@ -1,0 +1,70 @@
+# Copyright 2026 The OpenChoreo Authors
+# SPDX-License-Identifier: Apache-2.0
+#
+# The PostgresInstance API. This is the contract: every Postgres Composition in
+# this module implements it, whatever it provisions underneath, and the
+# `postgres-crossplane` ClusterResourceType creates it.
+#
+# Install on every data plane that serves Postgres. The Composition that builds
+# a PostgresInstance is whichever one that data plane has installed: with
+# exactly one Postgres Composition present, Crossplane selects it. With more
+# than one, set spec.defaultCompositionRef below, or Crossplane picks one of
+# them at random.
+#
+# Every Composition must, once the database is reachable:
+#   - set status.address, status.port, status.database and status.username
+#   - write a Secret named "<PostgresInstance name>-conn", in the same
+#     namespace, with the password under the key "password"
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: postgresinstances.crossplane.community.openchoreo.dev
+  labels:
+    app.kubernetes.io/name: provisioner-crossplane
+    app.kubernetes.io/part-of: openchoreo
+spec:
+  scope: Namespaced
+  group: crossplane.community.openchoreo.dev
+  names:
+    kind: PostgresInstance
+    plural: postgresinstances
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                version:
+                  type: string
+                  description: PostgreSQL major version.
+                  enum: ["15", "16", "17"]
+                  default: "16"
+                database:
+                  type: string
+                  description: Name of the database created for the application.
+                  pattern: "^[a-z_][a-z0-9_]{0,62}$"
+                  default: appdb
+                size:
+                  type: string
+                  description: >-
+                    Relative size. Each Composition maps it to its own
+                    provider's compute and storage.
+                  enum: [small, medium, large]
+                  default: small
+            status:
+              type: object
+              properties:
+                address:
+                  type: string
+                  description: Hostname clients connect to.
+                port:
+                  type: integer
+                database:
+                  type: string
+                username:
+                  type: string
