@@ -1,0 +1,40 @@
+# Copyright 2026 The OpenChoreo Authors
+# SPDX-License-Identifier: Apache-2.0
+#
+# The Crossplane provider for Azure Database for PostgreSQL, authenticating with
+# AKS workload identity. Installing it also installs `provider-family-azure`,
+# which owns the ProviderConfig types.
+#
+# Replace <managed-identity-client-id> with the client ID of the managed
+# identity the provider acts as. That identity needs a federated credential
+# with the subject
+#   system:serviceaccount:crossplane-system:provider-azure-dbforpostgresql
+# The ServiceAccount name is fixed below for that reason: left to Crossplane,
+# it is named after the provider revision and changes on every upgrade.
+apiVersion: pkg.crossplane.io/v1beta1
+kind: DeploymentRuntimeConfig
+metadata:
+  name: provider-azure-dbforpostgresql
+spec:
+  serviceAccountTemplate:
+    metadata:
+      name: provider-azure-dbforpostgresql
+      annotations:
+        azure.workload.identity/client-id: <managed-identity-client-id>
+  deploymentTemplate:
+    spec:
+      selector: {}
+      template:
+        metadata:
+          labels:
+            # Tells the AKS workload identity webhook to inject the token.
+            azure.workload.identity/use: "true"
+---
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-azure-dbforpostgresql
+spec:
+  package: xpkg.crossplane.io/crossplane-contrib/provider-azure-dbforpostgresql:v2.7.0
+  runtimeConfigRef:
+    name: provider-azure-dbforpostgresql

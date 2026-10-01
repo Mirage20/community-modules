@@ -1,0 +1,78 @@
+# Copyright 2026 The OpenChoreo Authors
+# SPDX-License-Identifier: Apache-2.0
+#
+# A Postgres ResourceType backed by Crossplane. Apply on the control plane.
+#
+# It renders a single PostgresInstance into the cell namespace and names no
+# cloud: the data plane that receives it decides, through whichever Postgres
+# Composition it has installed. The same Resource can therefore be in-cluster in
+# one environment and a managed cloud database in another, as long as the two
+# environments run on different data planes.
+#
+# Outputs match the other Postgres ResourceTypes (host, port, database,
+# username, password), so a Workload's envBindings carry over unchanged.
+apiVersion: openchoreo.dev/v1alpha1
+kind: ClusterResourceType
+metadata:
+  name: postgres-crossplane
+  labels:
+    app.kubernetes.io/name: provisioner-crossplane
+    app.kubernetes.io/part-of: openchoreo
+  annotations:
+    openchoreo.dev/local-dev-addresses: client=outputs.host:outputs.port
+    openchoreo.dev/description: >-
+      PostgreSQL provisioned by Crossplane. Where it runs is decided by the
+      data plane, through the Postgres Composition installed there.
+spec:
+  parameters:
+    openAPIV3Schema:
+      type: object
+      properties:
+        database:
+          type: string
+          pattern: "^[a-z_][a-z0-9_]{0,62}$"
+          default: appdb
+        version:
+          type: string
+          enum: ["15", "16", "17"]
+          default: "16"
+
+  environmentConfigs:
+    openAPIV3Schema:
+      type: object
+      properties:
+        size:
+          type: string
+          enum: [small, medium, large]
+          default: small
+
+  retainPolicy: Delete
+
+  outputs:
+    - name: host
+      value: ${applied.instance.status.address}
+    - name: port
+      value: ${string(applied.instance.status.port)}
+    - name: database
+      value: ${applied.instance.status.database}
+    - name: username
+      value: ${applied.instance.status.username}
+    - name: password
+      secretKeyRef:
+        name: ${metadata.name}-conn
+        key: password
+
+  resources:
+    - id: instance
+      readyWhen: "${has(applied.instance.status.conditions) && applied.instance.status.conditions.exists(c, c.type == 'Ready' && c.status == 'True')}"
+      template:
+        apiVersion: crossplane.community.openchoreo.dev/v1alpha1
+        kind: PostgresInstance
+        metadata:
+          name: ${metadata.name}
+          namespace: ${metadata.namespace}
+          labels: ${metadata.labels}
+        spec:
+          version: ${parameters.version}
+          database: ${parameters.database}
+          size: ${environmentConfigs.size}

@@ -1,0 +1,21 @@
+# Copyright 2026 The OpenChoreo Authors
+# SPDX-License-Identifier: Apache-2.0
+#
+# The Azure credentials Crossplane uses on this data plane. Apply after the
+# provider reports Healthy, since the provider family installs this type.
+#
+# Namespaced Azure resources use the ClusterProviderConfig named `default`
+# unless they say otherwise, so this one object covers every cell namespace.
+#
+# OIDCTokenFile reads the token the AKS workload identity webhook mounts into
+# the provider pod (see provider.yaml). All three IDs are required.
+apiVersion: azure.m.upbound.io/v1beta1
+kind: ClusterProviderConfig
+metadata:
+  name: default
+spec:
+  credentials:
+    source: OIDCTokenFile
+  clientID: <managed-identity-client-id>
+  tenantID: <tenant-id>
+  subscriptionID: <subscription-id>
