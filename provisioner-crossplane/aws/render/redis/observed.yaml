@@ -1,0 +1,23 @@
+# Copyright 2026 The OpenChoreo Authors
+# SPDX-License-Identifier: Apache-2.0
+#
+# The ElastiCache replication group as the provider reports it once AWS has
+# finished. Pass with --observed-resources to render a later reconcile, where
+# the RedisInstance gets its address and port and becomes Ready.
+apiVersion: elasticache.aws.m.upbound.io/v1beta1
+kind: ReplicationGroup
+metadata:
+  name: r-orders-cache-development-1a2b3c4d
+  namespace: dp-default-shop-development-5f6e7d8c
+  annotations:
+    crossplane.io/composition-resource-name: cache
+    crossplane.io/external-name: xp-r-orders-cache-development-1-31506d86
+status:
+  atProvider:
+    primaryEndpointAddress: master.xp-r-orders-cache-development-1-31506d86.abc123.use1.cache.amazonaws.com
+    port: 6379
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: Available
+      lastTransitionTime: "2026-10-12T00:00:00Z"

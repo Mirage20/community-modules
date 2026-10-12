@@ -1,0 +1,52 @@
+# Copyright 2026 The OpenChoreo Authors
+# SPDX-License-Identifier: Apache-2.0
+#
+# This data plane's AWS settings, read by every AWS Composition in the module.
+# Keeping them here, rather than in the ResourceTypes, is what lets the
+# ResourceTypes stay cloud-neutral.
+#
+# Settings shared by every resource kind are at the top level. Settings for one
+# kind go under its own key, such as `postgres`.
+#
+# The subnet groups and the security groups must already exist in the data
+# plane's VPC. The Compositions only reference them, by name and by ID; they
+# never create or delete them.
+apiVersion: apiextensions.crossplane.io/v1beta1
+kind: EnvironmentConfig
+metadata:
+  name: aws
+  labels:
+    app.kubernetes.io/name: provisioner-crossplane
+    app.kubernetes.io/part-of: openchoreo
+data:
+  # AWS region for new resources: the region of the data plane's VPC, for
+  # example us-east-1.
+  region: <region>
+
+  # Prepended to the name of every AWS resource the Compositions create.
+  # Lowercase letters, digits and hyphens, starting with a letter. The provider
+  # finds an ElastiCache replication group by its ID and takes over one that
+  # already exists, so a distinct prefix keeps it away from caches it did not
+  # create.
+  namePrefix: xp-
+
+  # Security groups attached to every database and cache. Together they must
+  # admit the data plane's pods on each resource's port: 5432 for PostgreSQL,
+  # 6379 for Redis.
+  securityGroupIds:
+    - <security-group-id>
+
+  # Optional. Tags added to every AWS resource the Compositions create. Values
+  # are written as strings.
+  tags: {}
+
+  postgres:
+    # An existing DB subnet group over the VPC's private subnets.
+    subnetGroupName: <db-subnet-group>
+
+    # Master user for new instances. RDS reserves some names, such as rdsadmin.
+    username: pgadmin
+
+  redis:
+    # An existing ElastiCache subnet group over the VPC's private subnets.
+    subnetGroupName: <cache-subnet-group>

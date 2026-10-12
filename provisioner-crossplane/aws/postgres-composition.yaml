@@ -1,0 +1,139 @@
+# Copyright 2026 The OpenChoreo Authors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Builds a PostgresInstance as an Amazon RDS for PostgreSQL instance.
+#
+# For each PostgresInstance, in the PostgresInstance's own namespace:
+#   Instance   the database instance, in the VPC's private subnets, with the
+#              application database created with it. The provider generates
+#              the master password into the Secret "<name>-conn", under
+#              "password", the name and key the ResourceType reads; it never
+#              leaves the data plane
+#
+# Per-data-plane settings come from the `aws` EnvironmentConfig: the region,
+# name prefix, security groups and tags shared by every AWS Composition, and
+# the PostgreSQL settings under `postgres`. The subnet group (by name) and the
+# security groups (by ID) are only referenced, never created or deleted here.
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: postgres-aws
+  labels:
+    app.kubernetes.io/name: provisioner-crossplane
+    app.kubernetes.io/part-of: openchoreo
+spec:
+  compositeTypeRef:
+    apiVersion: crossplane.community.openchoreo.dev/v1alpha1
+    kind: PostgresInstance
+  mode: Pipeline
+  pipeline:
+    # 1. Load this data plane's settings into the pipeline context.
+    - step: load-settings
+      functionRef:
+        name: function-environment-configs
+      input:
+        apiVersion: environmentconfigs.fn.crossplane.io/v1beta1
+        kind: Input
+        spec:
+          environmentConfigs:
+            - type: Reference
+              ref:
+                name: aws
+
+    # 2. Render the RDS instance, and copy what clients need into the
+    #    PostgresInstance's status.
+    - step: render
+      functionRef:
+        name: function-go-templating
+      input:
+        apiVersion: gotemplating.fn.crossplane.io/v1beta1
+        kind: GoTemplate
+        source: Inline
+        inline:
+          template: |
+            {{- $xr := .observed.composite.resource }}
+            {{- $settings := index .context "apiextensions.crossplane.io/environment" }}
+            {{- $pg := $settings.postgres }}
+
+            {{- /* RDS instance identifiers are unique per account and
+                   region: 1-63 letters, digits and hyphens, starting with a
+                   letter, with no two hyphens in a row and no hyphen at the
+                   end. The PostgresInstance name only covers the Resource and
+                   the environment, so add a hash of its namespace, which
+                   differs per OpenChoreo namespace and project. If the result
+                   is too long, or had characters to replace or hyphens to
+                   collapse, keep it unique with a hash of the full name. An
+                   instance that already exists keeps its identifier. */}}
+            {{- $fullName := printf "%s%s-%s" $settings.namePrefix $xr.metadata.name ($xr.metadata.namespace | sha256sum | trunc 8) }}
+            {{- $identifier := regexReplaceAll "-+" (regexReplaceAll "[^a-z0-9-]" (lower $fullName) "-") "-" }}
+            {{- if or (ne $identifier $fullName) (gt (len $identifier) 63) }}
+            {{- $identifier = printf "%s-%s" ($identifier | trunc 54 | trimSuffix "-") ($fullName | sha256sum | trunc 8) }}
+            {{- end }}
+            {{- with getComposedResource . "instance" }}
+            {{- with dig "spec" "forProvider" "identifier" "" . }}
+            {{- $identifier = . }}
+            {{- end }}
+            {{- end }}
+
+            {{- $instanceClass := index (dict "small" "db.t4g.small" "medium" "db.m7g.large" "large" "db.m7g.xlarge") $xr.spec.size }}
+            {{- $storageGb := index (dict "small" 32 "medium" 64 "large" 128) $xr.spec.size }}
+
+            ---
+            apiVersion: rds.aws.m.upbound.io/v1beta1
+            kind: Instance
+            metadata:
+              name: {{ $xr.metadata.name }}
+              annotations:
+                {{ setResourceNameAnnotation "instance" }}
+            spec:
+              forProvider:
+                region: {{ $settings.region | quote }}
+                identifier: {{ $identifier | quote }}
+                engine: postgres
+                {{- /* A major version: RDS picks its default minor version
+                       and upgrades minor versions automatically. */}}
+                engineVersion: {{ $xr.spec.version | quote }}
+                instanceClass: {{ $instanceClass }}
+                allocatedStorage: {{ $storageGb }}
+                storageType: gp3
+                storageEncrypted: true
+                dbName: {{ $xr.spec.database | quote }}
+                username: {{ $pg.username | quote }}
+                autoGeneratePassword: true
+                passwordSecretRef:
+                  name: {{ $xr.metadata.name }}-conn
+                  key: password
+                dbSubnetGroupName: {{ $pg.subnetGroupName | quote }}
+                vpcSecurityGroupIds: {{ $settings.securityGroupIds | toJson }}
+                publiclyAccessible: false
+                applyImmediately: true
+                {{- /* Without these, deleting the instance fails for want of
+                       a final snapshot name, or leaves backups behind. */}}
+                skipFinalSnapshot: true
+                deleteAutomatedBackups: true
+                {{- with $settings.tags }}
+                tags:
+                  {{- range $key, $value := . }}
+                  {{ $key | quote }}: {{ $value | toString | quote }}
+                  {{- end }}
+                {{- end }}
+            ---
+            {{- /* No resource-name annotation: this updates the
+                   PostgresInstance's own status instead of composing one. */}}
+            apiVersion: crossplane.community.openchoreo.dev/v1alpha1
+            kind: PostgresInstance
+            status:
+              port: 5432
+              database: {{ $xr.spec.database | quote }}
+              username: {{ $pg.username | quote }}
+              {{- with getComposedResource . "instance" }}
+              {{- with dig "status" "atProvider" "address" "" . }}
+              address: {{ . | quote }}
+              {{- end }}
+              {{- end }}
+
+    # 3. Mark the instance Ready when AWS reports it available, and the
+    #    PostgresInstance Ready with it.
+    - step: ready
+      functionRef:
+        name: function-auto-ready

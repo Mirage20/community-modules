@@ -1,0 +1,19 @@
+# Copyright 2026 The OpenChoreo Authors
+# SPDX-License-Identifier: Apache-2.0
+#
+# The AWS credentials Crossplane uses on this data plane. Apply after the
+# providers report Healthy, since the provider family installs this type.
+#
+# Namespaced AWS resources use the ClusterProviderConfig named `default` unless
+# they say otherwise, so this one object covers every cell namespace.
+#
+# PodIdentity uses the credentials EKS Pod Identity injects into each provider
+# pod (see provider.yaml). Each provider acts as the IAM role its association
+# names, so nothing account-specific goes here.
+apiVersion: aws.m.upbound.io/v1beta1
+kind: ClusterProviderConfig
+metadata:
+  name: default
+spec:
+  credentials:
+    source: PodIdentity

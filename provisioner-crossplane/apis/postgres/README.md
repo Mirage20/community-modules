@@ -10,6 +10,7 @@ For installing the module, see the [module README](../../README.md).
 | Backing | Builds a `PostgresInstance` as | Guide |
 | :------ | :----------------------------- | :---- |
 | Azure | Azure Database for PostgreSQL Flexible Server | [azure/README.md](../../azure/README.md#postgresql) |
+| AWS | Amazon RDS for PostgreSQL | [aws/README.md](../../aws/README.md#postgresql) |
 
 ## Parameters
 
@@ -89,5 +90,7 @@ is reachable:
   the key `password`
 - map `spec.size` to the platform's compute and storage
 
-The Azure Composition, [`azure/postgres-composition.yaml`](../../azure/postgres-composition.yaml), is
-a working example.
+The Azure Composition,
+[`azure/postgres-composition.yaml`](../../azure/postgres-composition.yaml), and the AWS one,
+[`aws/postgres-composition.yaml`](../../aws/postgres-composition.yaml), are working examples. The
+AWS one has the provider generate the password straight into that Secret.

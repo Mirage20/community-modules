@@ -1,0 +1,52 @@
+# Copyright 2026 The OpenChoreo Authors
+# SPDX-License-Identifier: Apache-2.0
+#
+# The Crossplane providers for the AWS services this backing uses, each
+# authenticating with EKS Pod Identity. Installing any of them also installs
+# `provider-family-aws`, which owns the ProviderConfig types. Apply only the
+# providers for the resources this data plane offers.
+#
+# Each provider needs a Pod Identity association for its ServiceAccount,
+#   crossplane-system/<provider name>
+# linked to an IAM role it can use. Each ServiceAccount name is fixed below for
+# that reason: left to Crossplane, it is named after the provider revision and
+# changes on every upgrade. Create the associations before the providers, since
+# EKS only injects credentials into pods started after an association exists.
+
+# PostgreSQL: Amazon RDS for PostgreSQL
+apiVersion: pkg.crossplane.io/v1beta1
+kind: DeploymentRuntimeConfig
+metadata:
+  name: provider-aws-rds
+spec:
+  serviceAccountTemplate:
+    metadata:
+      name: provider-aws-rds
+---
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-aws-rds
+spec:
+  package: xpkg.crossplane.io/crossplane-contrib/provider-aws-rds:v2.9.0
+  runtimeConfigRef:
+    name: provider-aws-rds
+---
+# Redis: Amazon ElastiCache
+apiVersion: pkg.crossplane.io/v1beta1
+kind: DeploymentRuntimeConfig
+metadata:
+  name: provider-aws-elasticache
+spec:
+  serviceAccountTemplate:
+    metadata:
+      name: provider-aws-elasticache
+---
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-aws-elasticache
+spec:
+  package: xpkg.crossplane.io/crossplane-contrib/provider-aws-elasticache:v2.9.0
+  runtimeConfigRef:
+    name: provider-aws-elasticache

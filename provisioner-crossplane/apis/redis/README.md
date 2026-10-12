@@ -10,6 +10,7 @@ For installing the module, see the [module README](../../README.md).
 | Backing | Builds a `RedisInstance` as | Guide |
 | :------ | :-------------------------- | :---- |
 | Azure | Azure Managed Redis | [azure/README.md](../../azure/README.md#redis) |
+| AWS | Amazon ElastiCache for Valkey | [aws/README.md](../../aws/README.md#redis) |
 
 ## Per-environment settings
 
@@ -74,6 +75,7 @@ reachable:
   the key `password`
 - map `spec.size` to the platform's compute and memory
 
-The Azure Composition, [`azure/redis-composition.yaml`](../../azure/redis-composition.yaml), is a
-working example. It also shows how to compose that Secret when the provider publishes the password
-under a different key.
+The Azure Composition, [`azure/redis-composition.yaml`](../../azure/redis-composition.yaml), and the
+AWS one, [`aws/redis-composition.yaml`](../../aws/redis-composition.yaml), are working examples. The
+Azure one composes that Secret, since its provider publishes the password under a different key; the
+AWS one has the provider generate the password straight into it.

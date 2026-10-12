@@ -1,0 +1,25 @@
+# Copyright 2026 The OpenChoreo Authors
+# SPDX-License-Identifier: Apache-2.0
+#
+# The RDS instance as the provider reports it once AWS has finished. Pass with
+# --observed-resources to render a later reconcile, where the PostgresInstance
+# gets its address and becomes Ready.
+apiVersion: rds.aws.m.upbound.io/v1beta1
+kind: Instance
+metadata:
+  name: r-orders-db-development-1a2b3c4d
+  namespace: dp-default-shop-development-5f6e7d8c
+  annotations:
+    crossplane.io/composition-resource-name: instance
+spec:
+  forProvider:
+    identifier: xp-r-orders-db-development-1a2b3c4d-a8b59b7c
+status:
+  atProvider:
+    address: xp-r-orders-db-development-1a2b3c4d-a8b59b7c.c1a2b3c4d5e6.us-east-1.rds.amazonaws.com
+    port: 5432
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: Available
+      lastTransitionTime: "2026-10-12T00:00:00Z"
