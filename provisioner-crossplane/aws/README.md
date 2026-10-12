@@ -178,16 +178,17 @@ SG=$(aws ec2 create-security-group --region "$REGION" --vpc-id "$VPC_ID" \
   --query GroupId --output text)
 aws ec2 authorize-security-group-ingress --region "$REGION" --group-id "$SG" --ip-permissions \
   "IpProtocol=tcp,FromPort=5432,ToPort=5432,UserIdGroupPairs=[{GroupId=$CLUSTER_SG}]" \
-  "IpProtocol=tcp,FromPort=6379,ToPort=6379,UserIdGroupPairs=[{GroupId=$CLUSTER_SG}]"
+  "IpProtocol=tcp,FromPort=6379,ToPort=6379,UserIdGroupPairs=[{GroupId=$CLUSTER_SG}]" \
+  --query 'SecurityGroupRules[].SecurityGroupRuleId' --output text
 
 aws rds create-db-subnet-group --region "$REGION" \
   --db-subnet-group-name openchoreo-crossplane \
   --db-subnet-group-description "Private subnets for RDS created by Crossplane for OpenChoreo" \
-  --subnet-ids "${PRIVATE_SUBNETS[@]}"
+  --subnet-ids "${PRIVATE_SUBNETS[@]}" --query DBSubnetGroup.SubnetGroupStatus --output text
 aws elasticache create-cache-subnet-group --region "$REGION" \
   --cache-subnet-group-name openchoreo-crossplane \
   --cache-subnet-group-description "Private subnets for ElastiCache created by Crossplane for OpenChoreo" \
-  --subnet-ids "${PRIVATE_SUBNETS[@]}"
+  --subnet-ids "${PRIVATE_SUBNETS[@]}" --query CacheSubnetGroup.CacheSubnetGroupName --output text
 
 echo "$SG"
 ```
