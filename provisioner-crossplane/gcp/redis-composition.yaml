@@ -91,6 +91,15 @@ spec:
             {{- end }}
             {{- end }}
 
+            {{- /* If the provider's connection Secret is missing, Crossplane
+                   passes no connection details. Keep the password already in
+                   "<name>-conn" then, rather than dropping it. */}}
+            {{- if not $password }}
+            {{- with getComposedResource . "connection-secret" }}
+            {{- $password = dig "data" "password" "" . }}
+            {{- end }}
+            {{- end }}
+
             {{- $address := "" }}
             {{- $port := "" }}
             {{- with getComposedResource . "cache" }}
